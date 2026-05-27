@@ -1,3 +1,4 @@
+// Forçando o git a destravar
 import React, { useState, useMemo } from 'react';
 import { 
   Calendar, Users, Plus, Search, LogOut, FileSpreadsheet, CheckCircle, Clock, XCircle 
