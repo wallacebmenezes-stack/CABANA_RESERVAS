@@ -1,31 +1,27 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Calendar, Users, DollarSign, TrendingUp, Plus, Search, 
-  LogOut, FileSpreadsheet, CheckCircle, Clock, XCircle, MapPin 
+  Calendar, Users, Plus, Search, LogOut, FileSpreadsheet, CheckCircle, Clock, XCircle 
 } from 'lucide-react';
 
 // --- DADOS REAIS EXTRAÍDOS DA PLANILHA DA ANA ---
 const initialReservations = [
-  // --- UNIDADE LITORÂNEA ---
-  {"id": "lit-1", "client_name": "Airton Comercial- Grupo Mateus", "contact": "98 98855-9757", "date": "2026-04-01", "time": "12:30", "guests": "15", "period": "almoço", "space": "Geral", "status": "confirmada", "notes": "Corporativo", "unit": "Litorânea"},
-  {"id": "lit-2", "client_name": "Bruno Santana", "contact": "98 98407-7202", "date": "2026-04-01", "time": "20:00", "guests": "18", "period": "jantar", "space": "VIP I", "status": "pendente", "notes": "", "unit": "Litorânea"},
-  {"id": "lit-3", "client_name": "Fernanda Morales", "contact": "98 98864-1484", "date": "2026-04-01", "time": "19:30", "guests": "40", "period": "jantar", "space": "Geral", "status": "cancelada", "notes": "Cancelado", "unit": "Litorânea"},
-  {"id": "lit-4", "client_name": "Daniela Lopes", "contact": "63 98125-7669", "date": "2026-04-01", "time": "19:30", "guests": "10", "period": "jantar", "space": "VIP II", "status": "confirmada", "notes": "", "unit": "Litorânea"},
-  {"id": "lit-5", "client_name": "Grupo Equatorial - RH", "contact": "98 99112-4455", "date": "2026-04-02", "time": "12:00", "guests": "25", "period": "almoço", "space": "Vista Mar", "status": "confirmada", "notes": "Corporativo", "unit": "Litorânea"},
-  {"id": "lit-6", "client_name": "Mariana Costa (Níver)", "contact": "98 98223-1122", "date": "2026-04-03", "time": "21:00", "guests": "12", "period": "jantar", "space": "VIP I", "status": "confirmada", "notes": "Aniversário", "unit": "Litorânea"},
-  {"id": "lit-7", "client_name": "Carlos Eduardo Silva", "contact": "98 98776-5544", "date": "2026-04-03", "time": "20:30", "guests": "04", "period": "jantar", "space": "Geral", "status": "pendente", "notes": "", "unit": "Litorânea"},
-  {"id": "lit-8", "client_name": "Dra. Camila Rocha", "contact": "98 98144-8899", "date": "2026-04-04", "time": "13:00", "guests": "08", "period": "almoço", "space": "Vista Mar", "status": "confirmada", "notes": "", "unit": "Litorânea"},
-  {"id": "lit-9", "client_name": "Roberto Souza", "contact": "98 99611-2233", "date": "2026-04-04", "time": "20:00", "guests": "06", "period": "jantar", "space": "VIP II", "status": "confirmada", "notes": "", "unit": "Litorânea"},
-  {"id": "lit-10", "client_name": "Juliana Alencar", "contact": "98 98822-7766", "date": "2026-04-05", "time": "12:30", "guests": "14", "period": "almoço", "space": "Geral", "status": "confirmada", "notes": "Família", "unit": "Litorânea"},
-  
-  // --- UNIDADE FAROL ---
-  {"id": "far-1", "client_name": "Milton Campelo", "contact": "9892001444", "date": "2026-04-01", "time": "19:00", "guests": "25", "period": "jantar", "space": "Geral", "status": "confirmada", "notes": "", "unit": "Farol"},
-  {"id": "far-2", "client_name": "Leandro José", "contact": "98981510453", "date": "2026-04-01", "time": "12:00", "guests": "06", "period": "almoço", "space": "Geral", "status": "confirmada", "notes": "", "unit": "Farol"},
-  {"id": "far-3", "client_name": "Consultório Dra. Ana", "contact": "98991442233", "date": "2026-04-02", "time": "20:00", "guests": "30", "period": "jantar", "space": "Mezanino", "status": "confirmada", "notes": "Confraternização", "unit": "Farol"},
-  {"id": "far-4", "client_name": "Rebeca Frota", "contact": "98988441122", "date": "2026-04-03", "time": "20:30", "guests": "15", "period": "jantar", "space": "VIP I", "status": "pendente", "notes": "Níver", "unit": "Farol"},
-  {"id": "far-5", "client_name": "Marcos Vinicius", "contact": "98982115566", "date": "2026-04-04", "time": "13:00", "guests": "08", "period": "almoço", "space": "Geral", "status": "confirmada", "notes": "", "unit": "Farol"},
-  {"id": "far-6", "client_name": "Patrícia Vieira", "contact": "98996554411", "date": "2026-04-04", "time": "19:30", "guests": "10", "period": "jantar", "space": "Mezanino", "status": "confirmada", "notes": "", "unit": "Farol"},
-  {"id": "far-7", "client_name": "Sérgio Murilo", "contact": "98987442211", "date": "2026-04-05", "time": "12:30", "guests": "20", "period": "almoço", "space": "Geral", "status": "confirmada", "notes": "Almoço de Páscoa", "unit": "Farol"}
+  {"id":"lit-1","client_name":"Airton Comercial- Grupo Mateus","contact":"98 98855-9757","date":"2026-04-01","time":"12:30","guests":"15","period":"almoço","space":"Geral","status":"confirmada","notes":"Corporativo","unit":"Litorânea"},
+  {"id":"lit-2","client_name":"Bruno Santana","contact":"98 98407-7202","date":"2026-04-01","time":"20:00","guests":"18","period":"jantar","space":"VIP I","status":"pendente","notes":"","unit":"Litorânea"},
+  {"id":"lit-3","client_name":"Fernanda Morales","contact":"98 98864-1484","date":"2026-04-01","time":"19:30","guests":"40","period":"jantar","space":"Geral","status":"cancelada","notes":"Cancelado","unit":"Litorânea"},
+  {"id":"lit-4","client_name":"Daniela Lopes","contact":"63 98125-7669","date":"2026-04-01","time":"19:30","guests":"10","period":"jantar","space":"VIP II","status":"confirmada","notes":"","unit":"Litorânea"},
+  {"id":"lit-5","client_name":"Grupo Equatorial - RH","contact":"98 99112-4455","date":"2026-04-02","time":"12:00","guests":"25","period":"almoço","space":"Vista Mar","status":"confirmada","notes":"Corporativo","unit":"Litorânea"},
+  {"id":"lit-6","client_name":"Mariana Costa (Níver)","contact":"98 98223-1122","date":"2026-04-03","time":"21:00","guests":"12","period":"jantar","space":"VIP I","status":"confirmada","notes":"Aniversário","unit":"Litorânea"},
+  {"id":"lit-7","client_name":"Carlos Eduardo Silva","contact":"98 98776-5544","date":"2026-04-03","time":"20:30","guests":"04","period":"jantar","space":"Geral","status":"pendente","notes":"","unit":"Litorânea"},
+  {"id":"lit-8","client_name":"Dra. Camila Rocha","contact":"98 98144-8899","date":"2026-04-04","time":"13:00","guests":"08","period":"almoço","space":"Vista Mar","status":"confirmada","notes":"","unit":"Litorânea"},
+  {"id":"lit-9","client_name":"Roberto Souza","contact":"98 99611-2233","date":"2026-04-04","time":"20:00","guests":"06","period":"jantar","space":"VIP II","status":"confirmada","notes":"","unit":"Litorânea"},
+  {"id":"lit-10","client_name":"Juliana Alencar","contact":"98 98822-7766","date":"2026-04-05","time":"12:30","guests":"14","period":"almoço","space":"Geral","status":"confirmada","notes":"Família","unit":"Litorânea"},
+  {"id":"far-1","client_name":"Milton Campelo","contact":"9892001444","date":"2026-04-01","time":"19:00","guests":"25","period":"jantar","space":"Geral","status":"confirmada","notes":"","unit":"Farol"},
+  {"id":"far-2","client_name":"Leandro José","contact":"98981510453","date":"2026-04-01","time":"12:00","guests":"06","period":"almoço","space":"Geral","status":"confirmada","notes":"","unit":"Farol"},
+  {"id":"far-3","client_name":"Consultório Dra. Ana","contact":"98991442233","date":"2026-04-02","time":"20:00","guests":"30","period":"jantar","space":"Mezanino","status":"confirmada","notes":"Confraternização","unit":"Farol"},
+  {"id":"far-4","client_name":"Rebeca Frota","contact":"98988441122","date":"2026-04-03","time":"20:30","guests":"15","period":"jantar","space":"VIP I","status":"pendente","notes":"Níver","unit":"Farol"},
+  {"id":"far-5","client_name":"Marcos Vinicius","contact":"98982115566","date":"2026-04-04","time":"13:00","guests":"08","period":"almoço","space":"Geral","status":"confirmada","notes":"","unit":"Farol"},
+  {"id":"far-6","client_name":"Patrícia Vieira","contact":"98996554411","date":"2026-04-04","time":"19:30","guests":"10","period":"jantar","space":"Mezanino","status":"confirmada","notes":"","unit":"Farol"},
+  {"id":"far-7","client_name":"Sérgio Murilo","contact":"98987442211","date":"2026-04-05","time":"12:30","guests":"20","period":"almoço","space":"Geral","status":"confirmada","notes":"Almoço de Páscoa","unit":"Farol"}
 ];
 
 export default function App() {
@@ -37,12 +33,6 @@ export default function App() {
   const [reservations, setReservations] = useState(initialReservations);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Formulário de nova reserva
-  const [formData, setFormData] = useState({
-    client_name: '', contact: '', date: '', time: '',
-    guests: '', period: 'almoço', space: 'Geral', notes: ''
-  });
-
   const handleLogin = (e) => {
     e.preventDefault();
     if (email === 'admin@cabanadosol.com.br' && password === 'admin123') {
@@ -52,27 +42,13 @@ export default function App() {
     }
   };
 
-  // Exportar Excel no formato Ana
   const handleExportExcel = () => {
     const headers = ['NOME CLIENTE', 'CONTATO', 'DATA', 'HORÁRIO', 'QTD./PX', 'ALMOÇO/JANTAR', 'ESPAÇO', 'STATUS', 'OBSERVAÇÕES'];
-    
     const rows = reservations
       .filter(r => r.unit === selectedUnit)
-      .map(r => [
-        r.client_name,
-        r.contact,
-        r.date,
-        r.time,
-        `${r.guests}px`,
-        r.period,
-        r.space,
-        r.status,
-        r.notes
-      ]);
+      .map(r => [r.client_name, r.contact, r.date, r.time, `${r.guests}px`, r.period, r.space, r.status, r.notes]);
 
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
-      + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\n');
-    
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -82,27 +58,20 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  // Filtragem de dados por Unidade e Busca
   const filteredReservations = useMemo(() => {
     return reservations.filter(res => {
-      const matchesUnit = res.unit === selectedUnit;
-      const matchesSearch = res.client_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            res.contact.includes(searchTerm);
-      return matchesUnit && matchesSearch;
+      return res.unit === selectedUnit && (res.client_name.toLowerCase().includes(searchTerm.toLowerCase()) || res.contact.includes(searchTerm));
     });
   }, [reservations, selectedUnit, searchTerm]);
 
-  // Métricas do Dashboard baseado nos dados reais
   const metrics = useMemo(() => {
     const unitRes = reservations.filter(r => r.unit === selectedUnit);
     const active = unitRes.filter(r => r.status === 'confirmada');
-    const totalGuests = active.reduce((sum, r) => sum + parseInt(r.guests || 0), 0);
-    
     return {
       totalReservations: unitRes.length,
       confirmed: active.length,
       pending: unitRes.filter(r => r.status === 'pendente').length,
-      totalGuests: totalGuests
+      totalGuests: active.reduce((sum, r) => sum + parseInt(r.guests || 0), 0)
     };
   }, [reservations, selectedUnit]);
 
@@ -129,9 +98,9 @@ export default function App() {
       </div>
     );
   }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-24">
-      {/* CABEÇALHO AMPLIADO PREMIUM */}
       <header className="bg-slate-900 border-b border-slate-800 shadow-md px-6 py-5 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -139,25 +108,20 @@ export default function App() {
             <span className="text-xl text-slate-500">/</span>
             <span className="text-xl md:text-2xl font-medium text-slate-300">Gestão Operacional</span>
           </div>
-          
           <div className="flex items-center flex-wrap gap-4">
-            {/* Seletores de Unidade Maiores */}
             <div className="bg-slate-950 p-1.5 rounded-xl border border-slate-800 flex gap-1 shadow-inner">
               <button onClick={() => setSelectedUnit('Farol')} className={`px-5 py-2.5 rounded-lg text-base font-bold transition ${selectedUnit === 'Farol' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}>Farol</button>
               <button onClick={() => setSelectedUnit('Litorânea')} className={`px-5 py-2.5 rounded-lg text-base font-bold transition ${selectedUnit === 'Litorânea' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}>Litorânea</button>
             </div>
-
             <div className="relative">
               <Search className="absolute left-3 top-3.5 h-5 w-5 text-slate-500" />
               <input type="text" placeholder="Buscar cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-slate-950 text-sm rounded-xl pl-10 pr-4 py-3 border border-slate-800 w-64 focus:outline-none focus:border-amber-500 text-white" />
             </div>
-
-            <button onClick={() => setUser(null)} className="p-3 bg-slate-950 hover:bg-red-950 border border-slate-800 hover:border-red-900 rounded-xl text-slate-400 hover:text-red-400 transition" title="Sair do Sistema"><LogOut className="h-5 w-5" /></button>
+            <button onClick={() => setUser(null)} className="p-3 bg-slate-950 hover:bg-red-950 border border-slate-800 hover:border-red-900 rounded-xl text-slate-400 hover:text-red-400 transition"><LogOut className="h-5 w-5" /></button>
           </div>
         </div>
       </header>
 
-      {/* SUB-MENU PRINCIPAL */}
       <nav className="bg-slate-900/60 backdrop-blur border-b border-slate-900 px-6 py-3">
         <div className="max-w-7xl mx-auto flex gap-3">
           <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${activeTab === 'dashboard' ? 'bg-slate-800 text-amber-400 border border-slate-700' : 'text-slate-400 hover:bg-slate-800/50'}`}>Painel Inicial</button>
@@ -165,11 +129,9 @@ export default function App() {
         </div>
       </nav>
 
-      {/* ÁREA DE CONTEÚDO */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
         {activeTab === 'dashboard' ? (
           <>
-            {/* CARDS METRICOS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm"><div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Mês (Planilha)</p><p className="text-3xl font-black text-white">{metrics.totalReservations}</p></div><div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-amber-500"><Calendar className="h-6 w-6" /></div></div>
               <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm"><div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirmadas</p><p className="text-3xl font-black text-emerald-400">{metrics.confirmed}</p></div><div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-emerald-400"><CheckCircle className="h-6 w-6" /></div></div>
@@ -177,7 +139,6 @@ export default function App() {
               <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm"><div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fluxo Hóspedes (PX)</p><p className="text-3xl font-black text-blue-400">{metrics.totalGuests}</p></div><div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-blue-400"><Users className="h-6 w-6" /></div></div>
             </div>
 
-            {/* CRONOGRAMA PROXIMOS DIAS ROTULADO */}
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-sm space-y-4">
               <div className="flex items-center gap-2 text-slate-300 font-bold text-lg border-b border-slate-800 pb-3">
                 <Calendar className="h-5 w-5 text-amber-500" />
@@ -195,7 +156,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* TABELA DE RESERVAS EXTRAÍDAS */}
             <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-md">
               <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
                 <h3 className="font-bold text-slate-200 text-lg">Listagem de Reservas Vigentes</h3>
@@ -239,7 +199,6 @@ export default function App() {
             </div>
           </>
         ) : (
-          /* FORMULÁRIO DE NOVA RESERVA SEM PARÊNTESES */
           <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-md max-w-2xl mx-auto space-y-6">
             <h3 className="text-xl font-bold text-slate-100 border-b border-slate-800 pb-3">Inserir Nova Reserva Manual</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -265,9 +224,8 @@ export default function App() {
         )}
       </main>
 
-      {/* BOTÃO FLUTUANTE EXCEL / BACKUP DE SEGURANÇA */}
       <div className="fixed bottom-6 right-6 z-50">
-        <button onClick={handleExportExcel} className="flex items-center gap-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3.5 rounded-full shadow-xl hover:shadow-emerald-900/30 transition transform hover:-translate-y-0.5 active:translate-y-0 border border-emerald-500" title={`Baixar Planilha de Reservas - Unidade ${selectedUnit}`}>
+        <button onClick={handleExportExcel} className="flex items-center gap-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3.5 rounded-full shadow-xl hover:shadow-emerald-900/30 transition transform hover:-translate-y-0.5 active:translate-y-0 border border-emerald-500">
           <FileSpreadsheet className="h-5 w-5" />
           <span className="text-sm">Backup Excel ({selectedUnit})</span>
         </button>
