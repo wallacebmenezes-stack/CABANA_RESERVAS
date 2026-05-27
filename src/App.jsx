@@ -1,8 +1,4 @@
-// Forçando o git a destravar
 import React, { useState, useMemo } from 'react';
-import { 
-  Calendar, Users, Plus, Search, LogOut, FileSpreadsheet, CheckCircle, Clock, XCircle 
-} from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -113,10 +109,12 @@ export default function App() {
               <button onClick={() => setSelectedUnit('Litorânea')} className={`px-5 py-2.5 rounded-lg text-base font-bold transition ${selectedUnit === 'Litorânea' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}>Litorânea</button>
             </div>
             <div className="relative">
-              <Search className="absolute left-3 top-3.5 h-5 w-5 text-slate-500" />
+              <svg className="absolute left-3 top-3.5 h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input type="text" placeholder="Buscar cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-slate-950 text-sm rounded-xl pl-10 pr-4 py-3 border border-slate-800 w-64 focus:outline-none focus:border-amber-500 text-white" />
             </div>
-            <button onClick={() => setUser(null)} className="p-3 bg-slate-950 hover:bg-red-950 border border-slate-800 hover:border-red-900 rounded-xl text-slate-400 hover:text-red-400 transition"><LogOut className="h-5 w-5" /></button>
+            <button onClick={() => setUser(null)} className="p-3 bg-slate-950 hover:bg-red-950 border border-slate-800 hover:border-red-900 rounded-xl text-slate-400 hover:text-red-400 transition">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
           </div>
         </div>
       </header>
@@ -132,15 +130,35 @@ export default function App() {
         {activeTab === 'dashboard' ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm"><div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Mês (Planilha)</p><p className="text-3xl font-black text-white">{metrics.totalReservations}</p></div><div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-amber-500"><Calendar className="h-6 w-6" /></div></div>
-              <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm"><div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirmadas</p><p className="text-3xl font-black text-emerald-400">{metrics.confirmed}</p></div><div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-emerald-400"><CheckCircle className="h-6 w-6" /></div></div>
-              <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm"><div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pendentes</p><p className="text-3xl font-black text-amber-400">{metrics.pending}</p></div><div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-amber-400"><Clock className="h-6 w-6" /></div></div>
-              <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm"><div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fluxo Hóspedes (PX)</p><p className="text-3xl font-black text-blue-400">{metrics.totalGuests}</p></div><div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-blue-400"><Users className="h-6 w-6" /></div></div>
+              <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm">
+                <div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Mês (Planilha)</p><p className="text-3xl font-black text-white">{metrics.totalReservations}</p></div>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-amber-500">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 002-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                </div>
+              </div>
+              <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm">
+                <div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirmadas</p><p className="text-3xl font-black text-emerald-400">{metrics.confirmed}</p></div>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-emerald-400">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+              </div>
+              <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm">
+                <div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pendentes</p><p className="text-3xl font-black text-amber-400">{metrics.pending}</p></div>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-amber-400">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+              </div>
+              <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 flex items-center justify-between shadow-sm">
+                <div className="space-y-1"><p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fluxo Hóspedes (PX)</p><p className="text-3xl font-black text-blue-400">{metrics.totalGuests}</p></div>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-blue-400">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                </div>
+              </div>
             </div>
 
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-sm space-y-4">
               <div className="flex items-center gap-2 text-slate-300 font-bold text-lg border-b border-slate-800 pb-3">
-                <Calendar className="h-5 w-5 text-amber-500" />
+                <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 <span>Próximos dias</span>
               </div>
               <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
@@ -185,8 +203,7 @@ export default function App() {
                             res.status === 'pendente' ? 'bg-amber-950/50 border-amber-800 text-amber-400' : 
                             'bg-red-950/50 border-red-800 text-red-400'
                           }`}>
-                            {res.status === 'confirmada' ? <CheckCircle className="h-3 w-3" /> : res.status === 'pendente' ? <Clock className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                            {res.status}
+                            {res.status === 'confirmada' ? '●' : res.status === 'pendente' ? '○' : '✕'} {res.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-xs text-slate-400 max-w-xs truncate" title={res.notes}>{res.notes || '—'}</td>
@@ -225,7 +242,7 @@ export default function App() {
 
       <div className="fixed bottom-6 right-6 z-50">
         <button onClick={handleExportExcel} className="flex items-center gap-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3.5 rounded-full shadow-xl hover:shadow-emerald-900/30 transition transform hover:-translate-y-0.5 active:translate-y-0 border border-emerald-500">
-          <FileSpreadsheet className="h-5 w-5" />
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
           <span className="text-sm">Backup Excel ({selectedUnit})</span>
         </button>
       </div>
