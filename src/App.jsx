@@ -13,11 +13,19 @@ const loadXLSX = () => new Promise(resolve => {
   document.head.appendChild(s);
 });
 
-const loadDocx = () => new Promise(resolve => {
+// CORREÇÃO 1: loadDocx configurado para rodar no navegador (UMD)
+const loadDocx = () => new Promise((resolve, reject) => {
   if (window.docx) { resolve(window.docx); return; }
   const s = document.createElement("script");
-  s.src = "https://unpkg.com/docx@8.5.0/build/index.js";
-  s.onload = () => resolve(window.docx);
+  s.src = "https://unpkg.com/docx@8.5.0/build/index.umd.js"; 
+  s.onload = () => {
+    if (window.docx) {
+      resolve(window.docx);
+    } else {
+      reject(new Error("Biblioteca 'docx' não injetada corretamente no escopo global."));
+    }
+  };
+  s.onerror = () => reject(new Error("Falha ao carregar o script do 'docx'."));
   document.head.appendChild(s);
 });
 
@@ -59,6 +67,7 @@ const STATUS_S = {
   cancelada: {bg:"#2a2a2a",color:"#888"},
 };
 
+// Componentes auxiliares de UI
 function EspacoBadge({nome}){
   if(!nome) return <span style={{fontSize:11,color:C.muted}}>—</span>;
   const s=ESPACO_S[nome]||{bg:"#2a2a2a",color:"#aaa"};
@@ -99,7 +108,7 @@ export default function App(){
   const [unidadeAtiva,setUnidadeAtiva] = useState(null);
   const [currentDate,setCurrentDate]   = useState(new Date());
   const [view,setView]                 = useState("dia");
-  const [aba,setAba]                   = useState("reservas"); // "reservas" | "relatorio"
+  const [aba,setAba]                   = useState("reservas");
 
   const [busca,setBusca]       = useState("");
   const [searchRes,setSearchRes] = useState([]);
@@ -112,8 +121,7 @@ export default function App(){
   const [salvando,setSalvando]     = useState(false);
   const [erroForm,setErroForm]     = useState("");
 
-  // Relatório
-  const [relPeriodo,setRelPeriodo]   = useState("mes");
+  // Relatório Filtros
   const [relDataIni,setRelDataIni]   = useState("");
   const [relDataFim,setRelDataFim]   = useState("");
   const [relStatus,setRelStatus]     = useState("todos");
@@ -152,7 +160,6 @@ export default function App(){
     return ()=>document.removeEventListener("mousedown",h);
   },[]);
 
-  // Set default rel dates
   useEffect(()=>{
     const now=new Date();
     const y=now.getFullYear(), m=String(now.getMonth()+1).padStart(2,"0");
@@ -253,7 +260,7 @@ export default function App(){
 
   function f(k,v){ setForm(p=>({...p,[k]:v})); }
 
-  // EXPORTAR EXCEL (backup)
+  // EXPORTAR EXCEL (backup flutuante)
   async function exportarExcel(){
     const XLSX = await loadXLSX();
     const unidsMap = {};
@@ -278,7 +285,122 @@ export default function App(){
     XLSX.writeFile(wb, `cabana_reservas_${toDS(new Date())}.xlsx`);
   }
 
-  // RELATÓRIO — dados filtrados
+  // CORREÇÃO 2: Função exportarDocx atualizada e integrada à estrutura interna do App
+  async function exportarDocx(){
+    setGerandoDoc(true);
+    try {
+      const docxLib = await loadDocx();
+      if (!docxLib) throw new Error("Não foi possível carregar a biblioteca de relatórios.");
+
+      const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, HeadingLevel, AlignmentType, WidthType, BorderStyle } = docxLib;
+
+      const unidNome = unidades.find(u => u.id === unidadeAtiva)?.nome || "";
+      const espsMap = {};
+      espacos.forEach(e => { espsMap[e.id] = e.nome; });
+
+      function bold(text, size = 22) { return new TextRun({ text, bold: true, size }); }
+      function normal(text, size = 20) { return new TextRun({ text, size }); }
+      function par(runs, alignment = AlignmentType.LEFT) { return new Paragraph({ children: Array.isArray(runs) ? runs : [runs], alignment }); }
+      function h1(text) { return new Paragraph({ text, heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }); }
+      function h2(text) { return new Paragraph({ text, heading: HeadingLevel.HEADING_2, spacing: { after: 120, before: 240 } }); }
+      function space() { return new Paragraph({ text: "", spacing: { after: 120 } }); }
+
+      const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+      function cellStyle(text, isHeader = false) {
+        return new TableCell({
+          children: [new Paragraph({ children: [new TextRun({ text: String(text || ""), bold: isHeader, size: 18 })], spacing: { before: 60, after: 60 } })],
+          borders: { top: noBorder, bottom: { style: BorderStyle.SINGLE, size: 4, color: "DDDDDD" }, left: noBorder, right: noBorder },
+          margins: { top: 80, bottom: 80, left: 120, right: 120 },
+        });
+      }
+
+      const periodo = relDataIni && relDataFim ? `${relDataIni.split("-").reverse().join("/")} a ${relDataFim.split("-").reverse().join("/")}` : "Todos os períodos";
+
+      const doc = new Document({
+        sections: [{
+          properties: {}, 
+          children: [
+            h1(`Relatório de Reservas — Cabana do Sol`),
+            par([bold(`Unidade: `), normal(unidNome)]),
+            par([bold(`Período: `), normal(periodo)]),
+            par([bold(`Gerado em: `), normal(new Date().toLocaleString("pt-BR"))]),
+            space(),
+
+            h2("Resumo Geral"),
+            new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+              new TableRow({ children: [cellStyle("Total de reservas", true), cellStyle(relStats.total, true), cellStyle("Total de pessoas", true), cellStyle(relStats.totalPessoas, true)] }),
+              new TableRow({ children: [cellStyle("Confirmadas"), cellStyle(relStats.confirmadas), cellStyle("Canceladas"), cellStyle(relStats.canceladas)] }),
+              new TableRow({ children: [cellStyle("Pendentes"), cellStyle(relStats.pendentes), cellStyle("Média pessoas/reserva"), cellStyle(relStats.total > 0 ? Math.round(relStats.totalPessoas / relStats.total) : 0)] }),
+            ] }),
+            space(),
+
+            h2("Horários mais frequentes"),
+            new Table({ width: { size: 60, type: WidthType.PERCENTAGE }, rows: [
+              new TableRow({ children: [cellStyle("Horário", true), cellStyle("Reservas", true)] }),
+              ...relStats.horarios.map(([h, n]) => new TableRow({ children: [cellStyle(h), cellStyle(n)] })),
+            ] }),
+            space(),
+
+            h2("Espaços mais utilizados"),
+            new Table({ width: { size: 60, type: WidthType.PERCENTAGE }, rows: [
+              new TableRow({ children: [cellStyle("Espaço", true), cellStyle("Reservas", true)] }),
+              ...relStats.espacosTop.map(([e, n]) => new TableRow({ children: [cellStyle(e), cellStyle(n)] })),
+            ] }),
+            space(),
+
+            h2("Reservas por dia da semana"),
+            new Table({ width: { size: 60, type: WidthType.PERCENTAGE }, rows: [
+              new TableRow({ children: [cellStyle("Dia", true), cellStyle("Reservas", true)] }),
+              ...relStats.diasSemana.map(([d, n]) => new TableRow({ children: [cellStyle(d), cellStyle(n)] })),
+            ] }),
+            space(),
+
+            ...(relStats.cancelMotivos.length > 0 ? [
+              h2("Cancelamentos com motivo registrado"),
+              new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+                new TableRow({ children: [cellStyle("Cliente", true), cellStyle("Data", true), cellStyle("Motivo", true)] }),
+                ...relStats.cancelMotivos.map(r => new TableRow({ children: [
+                  cellStyle(r.cliente_nome),
+                  cellStyle(r.data.split("-").reverse().join("/")),
+                  cellStyle(r.motivo_cancelamento),
+                ] })),
+              ] }),
+              space(),
+            ] : []),
+
+            h2("Lista de reservas"),
+            new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+              new TableRow({ children: [cellStyle("Cliente", true), cellStyle("Data", true), cellStyle("Horário", true), cellStyle("Pessoas", true), cellStyle("Espaço", true), cellStyle("Status", true), cellStyle("Obs", true)] }),
+              ...relDados.sort((a, b) => a.data.localeCompare(b.data) || a.horario.localeCompare(b.horario)).map(r => new TableRow({ children: [
+                cellStyle(r.cliente_nome),
+                cellStyle(r.data.split("-").reverse().join("/")),
+                cellStyle(r.horario),
+                cellStyle(r.qtd_pessoas),
+                cellStyle(espsMap[r.espaco_id] || "—"),
+                cellStyle(r.status),
+                cellStyle(r.observacoes || ""),
+              ] })),
+            ] }),
+          ]
+        }]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; 
+      a.download = `relatorio_reservas_${toDS(new Date())}.docx`;
+      a.click(); 
+      URL.revokeObjectURL(url);
+
+    } catch(err) { 
+      console.error(err);
+      alert("Erro ao gerar DOCX: " + err.message); 
+    }
+    setGerandoDoc(false);
+  }
+
+  // Dados filtrados do Relatório
   const relDados = useMemo(()=>{
     let lista = reservas.filter(r=>r.unidade_id===unidadeAtiva);
     if(relDataIni) lista=lista.filter(r=>r.data>=relDataIni);
@@ -299,12 +421,10 @@ export default function App(){
     const canceladas  = relDados.filter(r=>r.status==="cancelada").length;
     const pendentes   = relDados.filter(r=>r.status==="pendente").length;
 
-    // Horários mais frequentes
     const horMap={};
     relDados.forEach(r=>{ horMap[r.horario]=(horMap[r.horario]||0)+1; });
     const horarios=Object.entries(horMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
-    // Espaços mais usados
     const espMap={};
     relDados.forEach(r=>{
       const n=espacos.find(e=>e.id===r.espaco_id)?.nome||"Não definido";
@@ -312,7 +432,6 @@ export default function App(){
     });
     const espacosTop=Object.entries(espMap).sort((a,b)=>b[1]-a[1]);
 
-    // Por dia da semana
     const diaMap={};
     relDados.forEach(r=>{
       const d=new Date(r.data+"T12:00:00");
@@ -321,113 +440,10 @@ export default function App(){
     });
     const diasSemana=Object.entries(diaMap).sort((a,b)=>b[1]-a[1]);
 
-    // Cancelamentos com motivo
     const cancelMotivos=relDados.filter(r=>r.status==="cancelada"&&r.motivo_cancelamento);
 
     return {total,totalPessoas,confirmadas,canceladas,pendentes,horarios,espacosTop,diasSemana,cancelMotivos};
   },[relDados,espacos]);
-
-  // EXPORTAR DOCX
-  async function exportarDocx(){
-    setGerandoDoc(true);
-    try{
-      const docxLib = await loadDocx();
-      const {Document,Packer,Paragraph,Table,TableRow,TableCell,TextRun,HeadingLevel,AlignmentType,WidthType,BorderStyle} = docxLib;
-
-      const unidNome = unidades.find(u=>u.id===unidadeAtiva)?.nome||"";
-      const espsMap={};
-      espacos.forEach(e=>{ espsMap[e.id]=e.nome; });
-
-      function bold(text,size=22){ return new TextRun({text,bold:true,size}); }
-      function normal(text,size=20){ return new TextRun({text,size}); }
-      function par(runs,alignment=AlignmentType.LEFT){ return new Paragraph({children:Array.isArray(runs)?runs:[runs],alignment}); }
-      function h1(text){ return new Paragraph({text,heading:HeadingLevel.HEADING_1,spacing:{after:200}}); }
-      function h2(text){ return new Paragraph({text,heading:HeadingLevel.HEADING_2,spacing:{after:120,before:240}}); }
-      function space(){ return new Paragraph({text:"",spacing:{after:120}}); }
-
-      const noBorder={style:BorderStyle.NONE,size:0,color:"FFFFFF"};
-      function cellStyle(text,isHeader=false){
-        return new TableCell({
-          children:[new Paragraph({children:[new TextRun({text:String(text||""),bold:isHeader,size:isHeader?18:18})],spacing:{before:60,after:60}})],
-          borders:{top:noBorder,bottom:{style:BorderStyle.SINGLE,size:4,color:"DDDDDD"},left:noBorder,right:noBorder},
-          margins:{top:80,bottom:80,left:120,right:120},
-        });
-      }
-
-      const periodo = relDataIni&&relDataFim ? `${relDataIni.split("-").reverse().join("/")} a ${relDataFim.split("-").reverse().join("/")}` : "Todos os períodos";
-
-      const doc = new Document({ sections:[{ children:[
-        h1(`Relatório de Reservas — Cabana do Sol`),
-        par([bold(`Unidade: `),normal(unidNome)]),
-        par([bold(`Período: `),normal(periodo)]),
-        par([bold(`Gerado em: `),normal(new Date().toLocaleString("pt-BR"))]),
-        space(),
-
-        h2("Resumo Geral"),
-        new Table({ width:{size:100,type:WidthType.PERCENTAGE}, rows:[
-          new TableRow({children:[cellStyle("Total de reservas",true),cellStyle(relStats.total,true),cellStyle("Total de pessoas",true),cellStyle(relStats.totalPessoas,true)]}),
-          new TableRow({children:[cellStyle("Confirmadas"),cellStyle(relStats.confirmadas),cellStyle("Canceladas"),cellStyle(relStats.canceladas)]}),
-          new TableRow({children:[cellStyle("Pendentes"),cellStyle(relStats.pendentes),cellStyle("Média pessoas/reserva"),cellStyle(relStats.total>0?Math.round(relStats.totalPessoas/relStats.total):0)]}),
-        ]}),
-        space(),
-
-        h2("Horários mais frequentes"),
-        new Table({ width:{size:60,type:WidthType.PERCENTAGE}, rows:[
-          new TableRow({children:[cellStyle("Horário",true),cellStyle("Reservas",true)]}),
-          ...relStats.horarios.map(([h,n])=>new TableRow({children:[cellStyle(h),cellStyle(n)]})),
-        ]}),
-        space(),
-
-        h2("Espaços mais utilizados"),
-        new Table({ width:{size:60,type:WidthType.PERCENTAGE}, rows:[
-          new TableRow({children:[cellStyle("Espaço",true),cellStyle("Reservas",true)]}),
-          ...relStats.espacosTop.map(([e,n])=>new TableRow({children:[cellStyle(e),cellStyle(n)]})),
-        ]}),
-        space(),
-
-        h2("Reservas por dia da semana"),
-        new Table({ width:{size:60,type:WidthType.PERCENTAGE}, rows:[
-          new TableRow({children:[cellStyle("Dia",true),cellStyle("Reservas",true)]}),
-          ...relStats.diasSemana.map(([d,n])=>new TableRow({children:[cellStyle(d),cellStyle(n)]})),
-        ]}),
-        space(),
-
-        ...(relStats.cancelMotivos.length>0?[
-          h2("Cancelamentos com motivo registrado"),
-          new Table({ width:{size:100,type:WidthType.PERCENTAGE}, rows:[
-            new TableRow({children:[cellStyle("Cliente",true),cellStyle("Data",true),cellStyle("Motivo",true)]}),
-            ...relStats.cancelMotivos.map(r=>new TableRow({children:[
-              cellStyle(r.cliente_nome),
-              cellStyle(r.data.split("-").reverse().join("/")),
-              cellStyle(r.motivo_cancelamento),
-            ]})),
-          ]}),
-          space(),
-        ]:[]),
-
-        h2("Lista de reservas"),
-        new Table({ width:{size:100,type:WidthType.PERCENTAGE}, rows:[
-          new TableRow({children:[cellStyle("Cliente",true),cellStyle("Data",true),cellStyle("Horário",true),cellStyle("Pessoas",true),cellStyle("Espaço",true),cellStyle("Status",true),cellStyle("Obs",true)]}),
-          ...relDados.sort((a,b)=>a.data.localeCompare(b.data)||a.horario.localeCompare(b.horario)).map(r=>new TableRow({children:[
-            cellStyle(r.cliente_nome),
-            cellStyle(r.data.split("-").reverse().join("/")),
-            cellStyle(r.horario),
-            cellStyle(r.qtd_pessoas),
-            cellStyle(espsMap[r.espaco_id]||"—"),
-            cellStyle(r.status),
-            cellStyle(r.observacoes||""),
-          ]})),
-        ]}),
-      ]}]});
-
-      const blob = await Packer.toBlob(doc);
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href=url; a.download=`relatorio_reservas_${toDS(new Date())}.docx`;
-      a.click(); URL.revokeObjectURL(url);
-    } catch(err){ alert("Erro ao gerar DOCX: "+err.message); }
-    setGerandoDoc(false);
-  }
 
   if(authLoad) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:C.muted,fontSize:14}}>Carregando...</div>;
 
@@ -677,7 +693,7 @@ export default function App(){
 
       {/* MODAL */}
       {modalOpen&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setModalOpen(false)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}/* Fechar modal clicando fora */} onClick={e=>e.target===e.currentTarget&&setModalOpen(false)}>
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:"92%",maxWidth:460,maxHeight:"88vh",overflowY:"auto"}}>
             <div style={{fontSize:15,fontWeight:600,marginBottom:18}}>{editRes?"Editar reserva":"Nova reserva"}</div>
             {erroForm&&<div style={{fontSize:12,color:C.red,marginBottom:12,padding:"8px 10px",background:C.red+"18",borderRadius:8}}>{erroForm}</div>}
@@ -712,7 +728,7 @@ export default function App(){
                 </Grp>
               </Row>
             )}
-            <Row><Grp label="Observações"><textarea style={{...S.inp,minHeight:56,resize:"vertical"}} value={form.observacoes} onChange={e=>f("observacoes",e.target.value)} placeholder="Aniversário, Corporativo, etc."/></Grp></Row>
+            <Row><Grp label="Observações"><textarea style={{...S.inp,minHeight:56,resize:"vertical"}/* Campo observacoes */} value={form.observacoes} onChange={e=>f("observacoes",e.target.value)} placeholder="Aniversário, Corporativo, etc."/></Grp></Row>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
               {editRes&&<button style={{...S.btnGhost,color:C.red,borderColor:C.red+"66"}} onClick={excluir}>Excluir</button>}
               <button style={S.btnGhost} onClick={()=>setModalOpen(false)}>Cancelar</button>
