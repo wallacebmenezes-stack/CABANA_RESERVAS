@@ -58,7 +58,6 @@ function getTurno(h){ return parseInt(h)<17?"almoco":"jantar"; }
 function getTurnoLabel(h){ return parseInt(h)<17?"Almoço":"Jantar"; }
 function formatMoney(n){ return Number(n||0).toLocaleString("pt-BR", {style:"currency", currency:"BRL"}); }
 
-// Dicionário de cores atualizado para todos os salões com português correto
 const ESPACO_S = {
   "Área Externa":          {bg:"#E1F5EE",color:"#0F6E56"},
   "Área Interna Recepção": {bg:"#EEEDFE",color:"#3C3489"},
@@ -120,8 +119,10 @@ export default function App(){
 
   const [unidadeAtiva,setUnidadeAtiva] = useState(null);
   const [currentDate,setCurrentDate]   = useState(new Date());
-  const [view,setView]                 = useState("dia");
+  
+  // Controle de Abas e Visões
   const [aba,setAba]                   = useState("reservas");
+  const [view,setView]                 = useState("dia"); // "dia", "semana", "mes"
 
   const [busca,setBusca]       = useState("");
   const [searchRes,setSearchRes] = useState([]);
@@ -134,7 +135,6 @@ export default function App(){
   const [salvando,setSalvando]     = useState(false);
   const [erroForm,setErroForm]     = useState("");
   
-  // Controle de permissão de escrita dentro do Modal
   const [isEditing, setIsEditing] = useState(false);
 
   // Relatório Filtros
@@ -192,7 +192,6 @@ export default function App(){
   }
   async function logout(){ await sb.auth.signOut(); }
 
-  // Filtro Dinâmico: Puxa os salões associados à loja ativa cadastrados via SQL
   const espacosDaUnidade = useMemo(()=>espacos.filter(e=>e.unidade_id===unidadeAtiva),[espacos,unidadeAtiva]);
   const CAP_TOTAL = useMemo(()=>espacosDaUnidade.reduce((a,e)=>a+e.capacidade,0)||200,[espacosDaUnidade]);
   const reservasDoDia = useCallback((ds)=>reservas.filter(r=>r.unidade_id===unidadeAtiva&&r.data===ds),[reservas,unidadeAtiva]);
@@ -206,7 +205,6 @@ export default function App(){
     setShowSearch(true);
   }
 
-  // NOVA LÓGICA: Abre a tela direto em modo de visualização segura
   function openVisualizar(r){
     setEditRes(r);
     setForm({
@@ -217,11 +215,10 @@ export default function App(){
       tipo_evento: r.tipo_evento||"", nota_fiscal: r.nota_fiscal||"", valor_nota: r.valor_nota||""
     });
     setErroForm("");
-    setIsEditing(false); // Trava os inputs inicialmente
+    setIsEditing(false);
     setModalOpen(true);
   }
 
-  // Pede a senha apenas quando clica no botão de edição dentro do modal
   function handleHabilitarEdicao(){
     const pwd = window.prompt("Acesso Restrito: Digite a senha da gerência para liberar a edição:");
     if(pwd === SENHA_GERENCIA){
@@ -231,7 +228,6 @@ export default function App(){
     }
   }
 
-  // Pede a senha apenas ao acionar o botão de exclusão definitiva
   async function handleExcluirComSenha(){
     const pwd = window.prompt("Acesso Restrito: Digite a senha da gerência para confirmar a exclusão:");
     if(pwd === SENHA_GERENCIA){
@@ -253,11 +249,11 @@ export default function App(){
     setEditRes(null);
     setForm({...RES_VAZIO, data:toDS(currentDate), espaco_id:""});
     setErroForm("");
-    setIsEditing(true); // Nova reserva abre pronta para digitação
+    setIsEditing(true);
     setModalOpen(true);
   }
 
-  // LÓGICA DE IMPORTAÇÃO E ANÁLISE AUTOMÁTICA DE ARQUIVOS XML (NF-e)
+  // NOVA LÓGICA DO XML: Mais resiliente a diferentes tipos de notas
   function handleXMLUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -267,20 +263,32 @@ export default function App(){
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(event.target.result, "text/xml");
         
-        // Localiza as tags estruturadas do padrão de Notas Fiscais da Receita Federal
-        const nNF = xmlDoc.getElementsByTagName("nNF")[0]?.textContent || "";
-        const vNF = xmlDoc.getElementsByTagName("vNF")[0]?.textContent || "";
+        // Procura por nNF (Produto) ou Numero (Serviço)
+        const nNF = xmlDoc.getElementsByTagName("nNF")[0]?.textContent || 
+                    xmlDoc.getElementsByTagName("Numero")[0]?.textContent || "";
         
+        // Procura por vNF (Produto) ou ValorServicos (Serviço)
+        const vNF = xmlDoc.getElementsByTagName("vNF")[0]?.textContent || 
+                    xmlDoc.getElementsByTagName("ValorServicos")[0]?.textContent || "";
+        
+        // Limpa a formatação de dinheiro antes de parsear
+        const valorLimpo = vNF ? parseFloat(vNF.replace(',', '.')).toFixed(2) : "";
+        
+        if(!nNF && !vNF) {
+          alert("Aviso: Não encontramos os campos padrão da nota (nNF ou vNF) neste XML. Você pode preencher manualmente.");
+        }
+
         setForm(p => ({ 
           ...p, 
           nota_fiscal: nNF, 
-          valor_nota: vNF ? parseFloat(vNF).toFixed(2) : "" 
+          valor_nota: valorLimpo 
         }));
       } catch (err) {
-        alert("Erro ao ler o arquivo XML. Certifique-se de carregar um documento de Nota Fiscal válido.");
+        alert("Erro ao ler o arquivo XML. O arquivo pode estar corrompido ou fora do padrão.");
       }
     };
     reader.readAsText(file);
+    e.target.value = ''; // Reseta o input para permitir subir o mesmo arquivo de novo
   }
 
   async function salvar(){
@@ -588,26 +596,47 @@ export default function App(){
       </div>
 
       {aba==="reservas"&&<>
-        {/* NAV DATE */}
+        {/* NAV DATE - ATUALIZADO */}
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 24px",borderBottom:`1px solid ${C.border}`}}>
-          <button onClick={()=>setCurrentDate(d=>addDays(d,view==="dia"?-1:-7))} style={{...S.btnGhost,width:32,padding:0,fontSize:16}}>‹</button>
+          <button onClick={()=>setCurrentDate(d=>addDays(d, -1))} style={{...S.btnGhost,width:32,padding:0,fontSize:16}}>‹</button>
           <span style={{fontSize:15,fontWeight:600,minWidth:220,textAlign:"center"}}>
-            {view==="dia"?formatFull(currentDate):`A partir de ${formatShort(currentDate)}`}
+            {formatFull(currentDate)}
           </span>
-          <button onClick={()=>setCurrentDate(d=>addDays(d,view==="dia"?1:7))} style={{...S.btnGhost,width:32,padding:0,fontSize:16}}>›</button>
-          <button onClick={()=>setCurrentDate(new Date())} style={{...S.btnGhost,fontSize:12,padding:"4px 10px"}}>Hoje</button>
+          <button onClick={()=>setCurrentDate(d=>addDays(d, 1))} style={{...S.btnGhost,width:32,padding:0,fontSize:16}}>›</button>
+          
+          <button onClick={()=>{setCurrentDate(new Date()); setView("dia");}} style={{...S.btnGhost,fontSize:12,padding:"4px 10px", background: view==="dia" && isToday(currentDate) ? C.accent : "transparent", color: view==="dia" && isToday(currentDate) ? "#000" : C.muted, borderColor: view==="dia" && isToday(currentDate) ? C.accent : C.border}}>Hoje</button>
+          
+          <button onClick={()=>setView("semana")} style={{...S.btnGhost,fontSize:12,padding:"4px 10px", background: view==="semana" ? C.accent : "transparent", color: view==="semana" ? "#000" : C.muted, borderColor: view==="semana" ? C.accent : C.border}}>Semana</button>
+          
+          <button onClick={()=>setView("mes")} style={{...S.btnGhost,fontSize:12,padding:"4px 10px", background: view==="mes" ? C.accent : "transparent", color: view==="mes" ? "#000" : C.muted, borderColor: view==="mes" ? C.accent : C.border}}>Mês</button>
+
+          <label style={{...S.btnGhost,fontSize:12,padding:"4px 10px", cursor:"pointer", display:"flex", alignItems:"center", gap:4, position:"relative", overflow:"hidden"}}>
+            📅 Calendário
+            <input type="date" style={{position:"absolute", bottom:0, left:0, opacity:0, width:"100%", height:"100%", cursor:"pointer"}} onChange={(e)=>{
+              if(e.target.value){
+                const [y,m,d] = e.target.value.split('-');
+                setCurrentDate(new Date(y, m-1, d));
+                setView("dia");
+              }
+            }}/>
+          </label>
 
           <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-            <button onClick={()=>setView("dia")} style={{...S.btnGhost,fontSize:13,background:view==="dia"?C.border:"none",color:view==="dia"?C.text:C.muted}}>☰  Dia</button>
-            <button onClick={()=>setView("agenda")} style={{...S.btnGhost,fontSize:13,background:view==="agenda"?C.border:"none",color:view==="agenda"?C.text:C.muted}}>📅  Próximos dias</button>
             <button onClick={openNova} style={{...S.btn(),fontSize:13,padding:"7px 16px"}}>+ Nova reserva</button>
           </div>
         </div>
 
-        <div style={{padding:view==="agenda"?0:24}}>
+        <div style={{padding:view==="dia"?24:0}}>
           {view==="dia"
             ?<ViewDia ds={toDS(currentDate)} reservasDoDia={reservasDoDia} CAP_TOTAL={CAP_TOTAL} onEdit={openVisualizar} espacos={espacos}/>
-            :<ViewAgenda currentDate={currentDate} reservasDoDia={reservasDoDia} CAP_TOTAL={CAP_TOTAL} onEdit={openVisualizar} espacos={espacos}/>
+            :<ViewAgenda 
+                currentDate={currentDate} 
+                reservasDoDia={reservasDoDia} 
+                CAP_TOTAL={CAP_TOTAL} 
+                onEdit={openVisualizar} 
+                espacos={espacos}
+                numDays={view === "mes" ? (new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate() - currentDate.getDate() + 1) : 7}
+              />
           }
         </div>
       </>}
@@ -788,8 +817,8 @@ export default function App(){
                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <input style={S.inp} value={form.nota_fiscal} onChange={e=>f("nota_fiscal",e.target.value)} placeholder="Nº da NF" disabled={!isEditing}/>
                   {isEditing && (
-                    <label style={{ ...S.btn(C.border, C.text), padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} title="Anexar arquivo XML da Nota Fiscal">
-                      📂
+                    <label style={{ ...S.btn(C.border, C.text), padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "center", gap:"6px", cursor: "pointer", whiteSpace:"nowrap" }} title="Anexar arquivo XML da Nota Fiscal">
+                      📂 Add XML
                       <input type="file" accept=".xml" onChange={handleXMLUpload} style={{ display: "none" }} />
                     </label>
                   )}
@@ -897,9 +926,9 @@ function ViewDia({ds,reservasDoDia,CAP_TOTAL,onEdit,espacos}){
   );
 }
 
-function ViewAgenda({currentDate,reservasDoDia,CAP_TOTAL,onEdit,espacos}){
+function ViewAgenda({currentDate,reservasDoDia,CAP_TOTAL,onEdit,espacos,numDays}){
   const [abertos,setAbertos]=useState({});
-  const days=Array.from({length:14},(_,i)=>addDays(currentDate,i));
+  const days=Array.from({length:numDays},(_,i)=>addDays(currentDate,i));
   function toggle(ds){ setAbertos(p=>({...p,[ds]:!p[ds]})); }
   return(
     <div>
