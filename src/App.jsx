@@ -58,12 +58,21 @@ function getTurno(h){ return parseInt(h)<17?"almoco":"jantar"; }
 function getTurnoLabel(h){ return parseInt(h)<17?"Almoço":"Jantar"; }
 function formatMoney(n){ return Number(n||0).toLocaleString("pt-BR", {style:"currency", currency:"BRL"}); }
 
+// Dicionário de cores para os novos espaços (Litorânea e Farol)
 const ESPACO_S = {
-  "VIP I":    {bg:"#EEEDFE",color:"#3C3489"},
-  "VIP II":   {bg:"#EEEDFE",color:"#534AB7"},
-  "Vista Mar":{bg:"#E1F5EE",color:"#0F6E56"},
-  "Geral":    {bg:"#2a2a2a",color:"#aaa"},
-  "Mezanino": {bg:"#FAEEDA",color:"#633806"},
+  "Área Externa":          {bg:"#E1F5EE",color:"#0F6E56"},
+  "Área Interna Recepção": {bg:"#EEEDFE",color:"#3C3489"},
+  "Salão Crioulas":        {bg:"#FAEEDA",color:"#854F0B"},
+  "Salão das Minas":       {bg:"#FCE8F3",color:"#A02062"},
+  "Mezanino":              {bg:"#F0E6D2",color:"#633806"},
+  "Adega do Fialho":       {bg:"#4A154B",color:"#FFFFFF"},
+  "Salão das Artes":       {bg:"#E0F2FE",color:"#026AA7"},
+  "Salão dos Lençóis":     {bg:"#FFF9C4",color:"#F57F17"},
+  "Salão das Araras":      {bg:"#E8F5E9",color:"#2E7D32"},
+  "VIP I":                 {bg:"#EEEDFE",color:"#3C3489"},
+  "VIP II":                {bg:"#EEEDFE",color:"#534AB7"},
+  "Vista Mar":             {bg:"#E1F5EE",color:"#0F6E56"},
+  "Geral":                 {bg:"#2a2a2a",color:"#aaa"},
 };
 const STATUS_S = {
   confirmada:{bg:"#EAF3DE",color:"#3B6D11"},
@@ -472,17 +481,4 @@ export default function App(){
         </div>
         <div style={{marginBottom:20}}>
           <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>SENHA</label>
-          <input style={S.inp} type="password" value={senha} onChange={e=>setSenha(e.target.value)} placeholder="••••••••"/>
-        </div>
-        <button type="submit" style={{...S.btn(),width:"100%"}} disabled={loadingAuth}>{loadingAuth?"Entrando...":"Entrar"}</button>
-      </form>
-    </div>
-  );
-
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:C.muted,fontSize:14}}>Carregando dados...</div>;
-
-  return(
-    <div style={{minHeight:"100vh",background:C.bg,color:C.text,paddingBottom:80}}>
-
-      {/* TOPBAR */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space
+          <input style={S.inp} type="password" value={senha} onChange={e=>setSenha(e.target.value)}
