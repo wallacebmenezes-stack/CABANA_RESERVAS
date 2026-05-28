@@ -58,13 +58,23 @@ function getTurno(h){ return parseInt(h)<17?"almoco":"jantar"; }
 function getTurnoLabel(h){ return parseInt(h)<17?"Almoço":"Jantar"; }
 function formatMoney(n){ return Number(n||0).toLocaleString("pt-BR", {style:"currency", currency:"BRL"}); }
 
+// Dicionário de cores atualizado para todos os salões com português correto
 const ESPACO_S = {
-  "VIP I":    {bg:"#EEEDFE",color:"#3C3489"},
-  "VIP II":   {bg:"#EEEDFE",color:"#534AB7"},
-  "Vista Mar":{bg:"#E1F5EE",color:"#0F6E56"},
-  "Geral":    {bg:"#2a2a2a",color:"#aaa"},
-  "Mezanino": {bg:"#FAEEDA",color:"#633806"},
+  "Área Externa":          {bg:"#E1F5EE",color:"#0F6E56"},
+  "Área Interna Recepção": {bg:"#EEEDFE",color:"#3C3489"},
+  "Salão Crioulas":        {bg:"#FAEEDA",color:"#854F0B"},
+  "Salão das Minas":       {bg:"#FCE8F3",color:"#A02062"},
+  "Mezanino":              {bg:"#F0E6D2",color:"#633806"},
+  "Adega do Fialho":       {bg:"#4A154B",color:"#FFFFFF"},
+  "Salão das Artes":       {bg:"#E0F2FE",color:"#026AA7"},
+  "Salão dos Lençóis":     {bg:"#FFF9C4",color:"#F57F17"},
+  "Salão das Araras":      {bg:"#E8F5E9",color:"#2E7D32"},
+  "VIP I":                 {bg:"#EEEDFE",color:"#3C3489"},
+  "VIP II":                {bg:"#EEEDFE",color:"#534AB7"},
+  "Vista Mar":             {bg:"#E1F5EE",color:"#0F6E56"},
+  "Geral":                 {bg:"#2a2a2a",color:"#aaa"},
 };
+
 const STATUS_S = {
   confirmada:{bg:"#EAF3DE",color:"#3B6D11"},
   pendente:  {bg:"#FAEEDA",color:"#854F0B"},
@@ -123,6 +133,9 @@ export default function App(){
   const [form,setForm]             = useState(RES_VAZIO);
   const [salvando,setSalvando]     = useState(false);
   const [erroForm,setErroForm]     = useState("");
+  
+  // Controle de permissão de escrita dentro do Modal
+  const [isEditing, setIsEditing] = useState(false);
 
   // Relatório Filtros
   const [relDataIni,setRelDataIni]   = useState("");
@@ -179,6 +192,7 @@ export default function App(){
   }
   async function logout(){ await sb.auth.signOut(); }
 
+  // Filtro Dinâmico: Puxa os salões associados à loja ativa cadastrados via SQL
   const espacosDaUnidade = useMemo(()=>espacos.filter(e=>e.unidade_id===unidadeAtiva),[espacos,unidadeAtiva]);
   const CAP_TOTAL = useMemo(()=>espacosDaUnidade.reduce((a,e)=>a+e.capacidade,0)||200,[espacosDaUnidade]);
   const reservasDoDia = useCallback((ds)=>reservas.filter(r=>r.unidade_id===unidadeAtiva&&r.data===ds),[reservas,unidadeAtiva]);
@@ -192,11 +206,36 @@ export default function App(){
     setShowSearch(true);
   }
 
-  // CONTROLE DE SENHA PARA EDIÇÃO
-  function attemptEdit(r){
-    const pwd = window.prompt("Acesso Restrito: Digite a senha da gerência para editar/excluir:");
+  // NOVA LÓGICA: Abre a tela direto em modo de visualização segura
+  function openVisualizar(r){
+    setEditRes(r);
+    setForm({
+      cliente_nome:r.cliente_nome, cliente_contato:r.cliente_contato,
+      data:r.data, horario:r.horario, qtd_pessoas:r.qtd_pessoas,
+      espaco_id:r.espaco_id||"", status:r.status,
+      observacoes:r.observacoes||"", motivo_cancelamento:r.motivo_cancelamento||"",
+      tipo_evento: r.tipo_evento||"", nota_fiscal: r.nota_fiscal||"", valor_nota: r.valor_nota||""
+    });
+    setErroForm("");
+    setIsEditing(false); // Trava os inputs inicialmente
+    setModalOpen(true);
+  }
+
+  // Pede a senha apenas quando clica no botão de edição dentro do modal
+  function handleHabilitarEdicao(){
+    const pwd = window.prompt("Acesso Restrito: Digite a senha da gerência para liberar a edição:");
     if(pwd === SENHA_GERENCIA){
-      openEdit(r);
+      setIsEditing(true);
+    } else if(pwd !== null) {
+      alert("Senha incorreta!");
+    }
+  }
+
+  // Pede a senha apenas ao acionar o botão de exclusão definitiva
+  async function handleExcluirComSenha(){
+    const pwd = window.prompt("Acesso Restrito: Digite a senha da gerência para confirmar a exclusão:");
+    if(pwd === SENHA_GERENCIA){
+      await excluir();
     } else if(pwd !== null) {
       alert("Senha incorreta!");
     }
@@ -207,25 +246,41 @@ export default function App(){
     setAba("reservas");
     setCurrentDate(new Date(r.data+"T12:00:00"));
     setView("dia");
-    setTimeout(()=>attemptEdit(r),150);
+    setTimeout(()=>openVisualizar(r),150);
   }
 
   function openNova(){
     setEditRes(null);
     setForm({...RES_VAZIO, data:toDS(currentDate), espaco_id:""});
-    setErroForm(""); setModalOpen(true);
+    setErroForm("");
+    setIsEditing(true); // Nova reserva abre pronta para digitação
+    setModalOpen(true);
   }
 
-  function openEdit(r){
-    setEditRes(r);
-    setForm({
-      cliente_nome:r.cliente_nome, cliente_contato:r.cliente_contato,
-      data:r.data, horario:r.horario, qtd_pessoas:r.qtd_pessoas,
-      espaco_id:r.espaco_id||"", status:r.status,
-      observacoes:r.observacoes||"", motivo_cancelamento:r.motivo_cancelamento||"",
-      tipo_evento: r.tipo_evento||"", nota_fiscal: r.nota_fiscal||"", valor_nota: r.valor_nota||""
-    });
-    setErroForm(""); setModalOpen(true);
+  // LÓGICA DE IMPORTAÇÃO E ANÁLISE AUTOMÁTICA DE ARQUIVOS XML (NF-e)
+  function handleXMLUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(event.target.result, "text/xml");
+        
+        // Localiza as tags estruturadas do padrão de Notas Fiscais da Receita Federal
+        const nNF = xmlDoc.getElementsByTagName("nNF")[0]?.textContent || "";
+        const vNF = xmlDoc.getElementsByTagName("vNF")[0]?.textContent || "";
+        
+        setForm(p => ({ 
+          ...p, 
+          nota_fiscal: nNF, 
+          valor_nota: vNF ? parseFloat(vNF).toFixed(2) : "" 
+        }));
+      } catch (err) {
+        alert("Erro ao ler o arquivo XML. Certifique-se de carregar um documento de Nota Fiscal válido.");
+      }
+    };
+    reader.readAsText(file);
   }
 
   async function salvar(){
@@ -271,7 +326,6 @@ export default function App(){
 
   async function excluir(){
     if(!editRes) return;
-    if(!window.confirm("Excluir esta reserva definitivamente?")) return;
     await sb.from("reservas").delete().eq("id",editRes.id);
     setReservas(prev=>prev.filter(r=>r.id!==editRes.id));
     setModalOpen(false);
@@ -552,8 +606,8 @@ export default function App(){
 
         <div style={{padding:view==="agenda"?0:24}}>
           {view==="dia"
-            ?<ViewDia ds={toDS(currentDate)} reservasDoDia={reservasDoDia} CAP_TOTAL={CAP_TOTAL} onEdit={attemptEdit} espacos={espacos}/>
-            :<ViewAgenda currentDate={currentDate} reservasDoDia={reservasDoDia} CAP_TOTAL={CAP_TOTAL} onEdit={attemptEdit} espacos={espacos}/>
+            ?<ViewDia ds={toDS(currentDate)} reservasDoDia={reservasDoDia} CAP_TOTAL={CAP_TOTAL} onEdit={openVisualizar} espacos={espacos}/>
+            :<ViewAgenda currentDate={currentDate} reservasDoDia={reservasDoDia} CAP_TOTAL={CAP_TOTAL} onEdit={openVisualizar} espacos={espacos}/>
           }
         </div>
       </>}
@@ -600,7 +654,7 @@ export default function App(){
             </div>
           </div>
 
-          {/* Stats cards - 5 colunas para incluir Faturamento */}
+          {/* Stats cards */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:24}}>
             {[
               {label:"Total de reservas",val:relStats.total,cor:C.blue},
@@ -666,7 +720,7 @@ export default function App(){
                 </thead>
                 <tbody>
                   {relDados.sort((a,b)=>a.data.localeCompare(b.data)||a.horario.localeCompare(b.horario)).map(r=>(
-                    <tr key={r.id} onClick={()=>attemptEdit(r)} style={{cursor:"pointer",opacity:r.status==="cancelada"?.5:1}}>
+                    <tr key={r.id} onClick={()=>openVisualizar(r)} style={{cursor:"pointer",opacity:r.status==="cancelada"?.5:1}}>
                       <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}`}}>{r.cliente_nome}</td>
                       <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{r.data.split("-").reverse().join("/")}</td>
                       <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}`}}>{r.horario}</td>
@@ -690,49 +744,71 @@ export default function App(){
         📊
       </button>
 
-      {/* MODAL */}
+      {/* MODAL INTELIGENTE DE VISUALIZAÇÃO / EDIÇÃO */}
       {modalOpen&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setModalOpen(false)}>
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:"92%",maxWidth:540,maxHeight:"90vh",overflowY:"auto"}}>
-            <div style={{fontSize:15,fontWeight:600,marginBottom:18}}>{editRes?"Editar reserva":"Nova reserva"}</div>
+            <div style={{fontSize:15,fontWeight:600,marginBottom:18}}>
+              {!editRes ? "Nova Reserva" : isEditing ? "Editar Reserva" : "Visualizar Detalhes da Reserva"}
+            </div>
             {erroForm&&<div style={{fontSize:12,color:C.red,marginBottom:12,padding:"8px 10px",background:C.red+"18",borderRadius:8}}>{erroForm}</div>}
             
-            <Row><Grp label="Nome do cliente"><input style={S.inp} value={form.cliente_nome} onChange={e=>f("cliente_nome",e.target.value)} placeholder="Ex: Airton Comercial"/></Grp></Row>
-            
             <Row>
-              <Grp label="Contato"><input style={S.inp} value={form.cliente_contato} onChange={e=>f("cliente_contato",e.target.value)} placeholder="98 99999-0000"/></Grp>
-              <Grp label="Nº de pessoas"><input style={S.inp} type="number" min="1" value={form.qtd_pessoas} onChange={e=>f("qtd_pessoas",e.target.value)}/></Grp>
+              <Grp label="Nome do cliente">
+                <input style={S.inp} value={form.cliente_nome} onChange={e=>f("cliente_nome",e.target.value)} placeholder="Ex: Airton Comercial" disabled={!isEditing}/>
+              </Grp>
             </Row>
             
             <Row>
-              <Grp label="Data"><input style={S.inp} type="date" value={form.data} onChange={e=>f("data",e.target.value)}/></Grp>
-              <Grp label="Horário"><input style={S.inp} type="time" value={form.horario} onChange={e=>f("horario",e.target.value)}/></Grp>
+              <Grp label="Contato">
+                <input style={S.inp} value={form.cliente_contato} onChange={e=>f("cliente_contato",e.target.value)} placeholder="98 99999-0000" disabled={!isEditing}/>
+              </Grp>
+              <Grp label="Nº de pessoas">
+                <input style={S.inp} type="number" min="1" value={form.qtd_pessoas} onChange={e=>f("qtd_pessoas",e.target.value)} disabled={!isEditing}/>
+              </Grp>
+            </Row>
+            
+            <Row>
+              <Grp label="Data">
+                <input style={S.inp} type="date" value={form.data} onChange={e=>f("data",e.target.value)} disabled={!isEditing}/>
+              </Grp>
+              <Grp label="Horário">
+                <input style={S.inp} type="time" value={form.horario} onChange={e=>f("horario",e.target.value)} disabled={!isEditing}/>
+              </Grp>
             </Row>
 
             <Row>
               <Grp label="Tipo de Evento">
-                <select style={S.inp} value={form.tipo_evento} onChange={e=>f("tipo_evento",e.target.value)}>
+                <select style={S.inp} value={form.tipo_evento} onChange={e=>f("tipo_evento",e.target.value)} disabled={!isEditing}>
                   <option value="">— selecione —</option>
                   {TIPOS_EVENTO.map(ev=><option key={ev} value={ev}>{ev}</option>)}
                 </select>
               </Grp>
               <Grp label="Nota Fiscal">
-                <input style={S.inp} value={form.nota_fiscal} onChange={e=>f("nota_fiscal",e.target.value)} placeholder="Nº da NF"/>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <input style={S.inp} value={form.nota_fiscal} onChange={e=>f("nota_fiscal",e.target.value)} placeholder="Nº da NF" disabled={!isEditing}/>
+                  {isEditing && (
+                    <label style={{ ...S.btn(C.border, C.text), padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} title="Anexar arquivo XML da Nota Fiscal">
+                      📂
+                      <input type="file" accept=".xml" onChange={handleXMLUpload} style={{ display: "none" }} />
+                    </label>
+                  )}
+                </div>
               </Grp>
               <Grp label="Valor da Nota (R$)">
-                <input style={S.inp} type="number" step="0.01" value={form.valor_nota} onChange={e=>f("valor_nota",e.target.value)} placeholder="0.00"/>
+                <input style={S.inp} type="number" step="0.01" value={form.valor_nota} onChange={e=>f("valor_nota",e.target.value)} placeholder="0.00" disabled={!isEditing}/>
               </Grp>
             </Row>
             
             <Row>
               <Grp label="Espaço">
-                <select style={S.inp} value={form.espaco_id} onChange={e=>f("espaco_id",e.target.value)}>
+                <select style={S.inp} value={form.espaco_id} onChange={e=>f("espaco_id",e.target.value)} disabled={!isEditing}>
                   <option value="">— sem espaço definido —</option>
                   {espacosDaUnidade.map(e=><option key={e.id} value={e.id}>{e.nome} · {e.capacidade} lugares</option>)}
                 </select>
               </Grp>
               <Grp label="Status">
-                <select style={S.inp} value={form.status} onChange={e=>f("status",e.target.value)}>
+                <select style={S.inp} value={form.status} onChange={e=>f("status",e.target.value)} disabled={!isEditing}>
                   <option value="confirmada">confirmada</option>
                   <option value="pendente">pendente</option>
                   <option value="cancelada">cancelada</option>
@@ -743,17 +819,31 @@ export default function App(){
             {form.status==="cancelada"&&(
               <Row>
                 <Grp label="⚠ Motivo do cancelamento (obrigatório)">
-                  <textarea style={{...S.inp,minHeight:64,resize:"vertical",borderColor:C.red+"66"}} value={form.motivo_cancelamento} onChange={e=>f("motivo_cancelamento",e.target.value)} placeholder="Descreva o motivo do cancelamento..."/>
+                  <textarea style={{...S.inp,minHeight:64,resize:"vertical",borderColor:C.red+"66"}} value={form.motivo_cancelamento} onChange={e=>f("motivo_cancelamento",e.target.value)} placeholder="Descreva o motivo do cancelamento..." disabled={!isEditing}/>
                 </Grp>
               </Row>
             )}
             
-            <Row><Grp label="Observações"><textarea style={{...S.inp,minHeight:56,resize:"vertical"}} value={form.observacoes} onChange={e=>f("observacoes",e.target.value)} placeholder="Detalhes, pedidos especiais..."/></Grp></Row>
+            <Row>
+              <Grp label="Observações">
+                <textarea style={{...S.inp,minHeight:56,resize:"vertical"}} value={form.observacoes} onChange={e=>f("observacoes",e.target.value)} placeholder="Detalhes, pedidos especiais..." disabled={!isEditing}/>
+              </Grp>
+            </Row>
             
+            {/* Controle Inteligente dos Botões de Ação do Rodapé */}
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
-              {editRes&&<button style={{...S.btnGhost,color:C.red,borderColor:C.red+"66"}} onClick={excluir}>Excluir permanentemente</button>}
-              <button style={S.btnGhost} onClick={()=>setModalOpen(false)}>Cancelar</button>
-              <button style={S.btn()} onClick={salvar} disabled={salvando}>{salvando?"Salvando...":editRes?"Salvar alterações":"Criar reserva"}</button>
+              {!isEditing ? (
+                <>
+                  {editRes && <button style={{...S.btnGhost,color:C.red,borderColor:C.red+"66"}} onClick={handleExcluirComSenha}>Excluir Reserva</button>}
+                  <button style={S.btnGhost} onClick={()=>setModalOpen(false)}>Fechar</button>
+                  <button style={S.btn(C.blue, "#fff")} onClick={handleHabilitarEdicao}>Editar Dados</button>
+                </>
+              ) : (
+                <>
+                  <button style={S.btnGhost} onClick={editRes ? () => setIsEditing(false) : () => setModalOpen(false)}>Cancelar</button>
+                  <button style={S.btn()} onClick={salvar} disabled={salvando}>{salvando?"Salvando...":editRes?"Salvar alterações":"Criar reserva"}</button>
+                </>
+              )}
             </div>
           </div>
         </div>
