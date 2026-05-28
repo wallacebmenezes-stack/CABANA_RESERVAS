@@ -128,6 +128,9 @@ export default function App(){
   const [searchRes,setSearchRes] = useState([]);
   const [showSearch,setShowSearch] = useState(false);
   const searchRef = useRef(null);
+  
+  // Referência para abrir o calendário nativo
+  const calendarioRef = useRef(null);
 
   const [modalOpen,setModalOpen]   = useState(false);
   const [editRes,setEditRes]       = useState(null);
@@ -253,7 +256,7 @@ export default function App(){
     setModalOpen(true);
   }
 
-  // NOVA LÓGICA DO XML: Mais resiliente a diferentes tipos de notas
+  // LÓGICA DO XML
   function handleXMLUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -263,15 +266,12 @@ export default function App(){
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(event.target.result, "text/xml");
         
-        // Procura por nNF (Produto) ou Numero (Serviço)
         const nNF = xmlDoc.getElementsByTagName("nNF")[0]?.textContent || 
                     xmlDoc.getElementsByTagName("Numero")[0]?.textContent || "";
         
-        // Procura por vNF (Produto) ou ValorServicos (Serviço)
         const vNF = xmlDoc.getElementsByTagName("vNF")[0]?.textContent || 
                     xmlDoc.getElementsByTagName("ValorServicos")[0]?.textContent || "";
         
-        // Limpa a formatação de dinheiro antes de parsear
         const valorLimpo = vNF ? parseFloat(vNF.replace(',', '.')).toFixed(2) : "";
         
         if(!nNF && !vNF) {
@@ -288,7 +288,7 @@ export default function App(){
       }
     };
     reader.readAsText(file);
-    e.target.value = ''; // Reseta o input para permitir subir o mesmo arquivo de novo
+    e.target.value = ''; 
   }
 
   async function salvar(){
@@ -610,16 +610,23 @@ export default function App(){
           
           <button onClick={()=>setView("mes")} style={{...S.btnGhost,fontSize:12,padding:"4px 10px", background: view==="mes" ? C.accent : "transparent", color: view==="mes" ? "#000" : C.muted, borderColor: view==="mes" ? C.accent : C.border}}>Mês</button>
 
-          <label style={{...S.btnGhost,fontSize:12,padding:"4px 10px", cursor:"pointer", display:"flex", alignItems:"center", gap:4, position:"relative", overflow:"hidden"}}>
-            📅 Calendário
-            <input type="date" style={{position:"absolute", bottom:0, left:0, opacity:0, width:"100%", height:"100%", cursor:"pointer"}} onChange={(e)=>{
-              if(e.target.value){
-                const [y,m,d] = e.target.value.split('-');
-                setCurrentDate(new Date(y, m-1, d));
-                setView("dia");
-              }
-            }}/>
-          </label>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => calendarioRef.current && calendarioRef.current.showPicker()} style={{...S.btnGhost,fontSize:12,padding:"4px 10px", display:"flex", alignItems:"center", gap:4}}>
+              📅 Calendário
+            </button>
+            <input 
+              ref={calendarioRef}
+              type="date" 
+              style={{ width: 0, height: 0, border: 0, padding: 0, margin: 0, position: "absolute", pointerEvents: "none", opacity: 0 }} 
+              onChange={(e)=>{
+                if(e.target.value){
+                  const [y,m,d] = e.target.value.split('-');
+                  setCurrentDate(new Date(y, m-1, d));
+                  setView("dia");
+                }
+              }}
+            />
+          </div>
 
           <div style={{marginLeft:"auto",display:"flex",gap:6}}>
             <button onClick={openNova} style={{...S.btn(),fontSize:13,padding:"7px 16px"}}>+ Nova reserva</button>
@@ -806,7 +813,8 @@ export default function App(){
               </Grp>
             </Row>
 
-            <Row>
+            {/* Linha personalizada para aumentar o campo da Nota Fiscal */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:12,marginBottom:12}}>
               <Grp label="Tipo de Evento">
                 <select style={S.inp} value={form.tipo_evento} onChange={e=>f("tipo_evento",e.target.value)} disabled={!isEditing}>
                   <option value="">— selecione —</option>
@@ -814,8 +822,8 @@ export default function App(){
                 </select>
               </Grp>
               <Grp label="Nota Fiscal">
-                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                  <input style={S.inp} value={form.nota_fiscal} onChange={e=>f("nota_fiscal",e.target.value)} placeholder="Nº da NF" disabled={!isEditing}/>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%" }}>
+                  <input style={{...S.inp, flex: 1}} value={form.nota_fiscal} onChange={e=>f("nota_fiscal",e.target.value)} placeholder="Nº da NF" disabled={!isEditing}/>
                   {isEditing && (
                     <label style={{ ...S.btn(C.border, C.text), padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "center", gap:"6px", cursor: "pointer", whiteSpace:"nowrap" }} title="Anexar arquivo XML da Nota Fiscal">
                       📂 Add XML
@@ -827,7 +835,7 @@ export default function App(){
               <Grp label="Valor da Nota (R$)">
                 <input style={S.inp} type="number" step="0.01" value={form.valor_nota} onChange={e=>f("valor_nota",e.target.value)} placeholder="0.00" disabled={!isEditing}/>
               </Grp>
-            </Row>
+            </div>
             
             <Row>
               <Grp label="Espaço">
