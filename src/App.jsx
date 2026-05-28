@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL  = "https://wbzpfcuoytgadcnstcue.supabase.co";
+const SUPABASE_URL = "https://wbzpfcuoytgadcnstcue.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndienBmY3VveXRnYWRjbnN0Y3VlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NTI4ODUsImV4cCI6MjA5NTQyODg4NX0.vL7NP0-781gusMMNeqNTTUdQNTxAKr4Gtoo4Y8hQOtY";
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
@@ -418,7 +418,7 @@ export default function App(){
             cellStyle(r.observacoes||""),
           ]})),
         ]}),
-      ]}}]);
+      ]}]});
 
       const blob = await Packer.toBlob(doc);
       const url  = URL.createObjectURL(blob);
