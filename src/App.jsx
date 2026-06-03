@@ -1,4 +1,4 @@
-code_content = """import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // --- CONFIGURAÇÕES ---
@@ -138,7 +138,7 @@ export default function App(){
   const [erroForm,setErroForm]     = useState("");
   
   const [isEditing, setIsEditing] = useState(false);
-  const [uploadingXML, setUploadingXML] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   // Relatório Filtros
   const [relDataIni,setRelDataIni]   = useState("");
@@ -257,61 +257,38 @@ export default function App(){
     setModalOpen(true);
   }
 
-  // SOLUÇÃO DO HD VIRTUAL: Extrai os dados localmente E envia o arquivo para o Supabase Storage Bucket
-  function handleXMLUpload(e) {
+  // SOLUÇÃO UNIVERSAL: Envia qualquer ficheiro sem o analisar
+  async function handleFileUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
     
-    setUploadingXML(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(event.target.result, "text/xml");
-        
-        const nNF = xmlDoc.getElementsByTagName("nNF")[0]?.textContent || 
-                    xmlDoc.getElementsByTagName("Numero")[0]?.textContent || "";
-        
-        const vNF = xmlDoc.getElementsByTagName("vNF")[0]?.textContent || 
-                    xmlDoc.getElementsByTagName("ValorServicos")[0]?.textContent || "";
-        
-        const valorLimpo = vNF ? parseFloat(vNF.replace(',', '.')).toFixed(2) : "";
-        
-        if(!nNF && !vNF) {
-          alert("Aviso: Não encontramos os campos padrão da nota neste XML. Você pode preencher manualmente.");
-        }
+    setUploadingFile(true);
+    
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      
+      const { error: uploadError } = await sb.storage
+        .from('notas_fiscais')
+        .upload(fileName, file);
 
-        // Executa o upload físico do arquivo para o bucket 'notas_fiscais'
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        
-        const { data: uploadData, error: uploadError } = await sb.storage
-          .from('notas_fiscais')
-          .upload(fileName, file);
+      if (uploadError) throw uploadError;
 
-        if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = sb.storage
+        .from('notas_fiscais')
+        .getPublicUrl(fileName);
 
-        // Recupera a URL pública definitiva do arquivo recém-salvo no HD Virtual
-        const { data: { publicUrl } } = sb.storage
-          .from('notas_fiscais')
-          .getPublicUrl(fileName);
+      setForm(p => ({ 
+        ...p, 
+        link_xml: publicUrl
+      }));
 
-        setForm(p => ({ 
-          ...p, 
-          nota_fiscal: nNF, 
-          valor_nota: valorLimpo,
-          link_xml: publicUrl // Garante que o link do anexo fique gravado no estado do formulário
-        }));
-
-        alert("XML processado e anexado com sucesso ao HD Virtual!");
-      } catch (err) {
-        alert("Erro ao processar ou enviar arquivo para o Storage: " + err.message);
-      } finally {
-        setUploadingXML(false);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = ''; 
+    } catch (err) {
+      alert("Erro ao anexar o documento: " + err.message);
+    } finally {
+      setUploadingFile(false);
+      e.target.value = ''; // Reseta o input
+    }
   }
 
   async function salvar(){
@@ -340,7 +317,7 @@ export default function App(){
         tipo_evento: form.tipo_evento||null,
         nota_fiscal: form.nota_fiscal.trim()||null,
         valor_nota: form.valor_nota ? Number(form.valor_nota) : null,
-        link_xml: form.link_xml || null // Salva a URL do anexo de forma permanente no banco de dados
+        link_xml: form.link_xml || null
       };
       if(editRes){
         const {error}=await sb.from("reservas").update(payload).eq("id",editRes.id);
@@ -806,7 +783,7 @@ export default function App(){
 
       {/* MODAL INTELIGENTE DE VISUALIZAÇÃO / EDIÇÃO */}
       {modalOpen&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"} /* Correção de bug de fechamento involuntário */} onClick={e=>e.target===e.currentTarget&&setModalOpen(false)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setModalOpen(false)}>
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:"92%",maxWidth:540,maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontSize:15,fontWeight:600,marginBottom:18}}>
               {!editRes ? "Nova Reserva" : isEditing ? "Editar Reserva" : "Visualizar Detalhes da Reserva"}
@@ -850,16 +827,17 @@ export default function App(){
                   <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%" }}>
                     <input style={{...S.inp, flex: 1}} value={form.nota_fiscal} onChange={e=>f("nota_fiscal",e.target.value)} placeholder="Nº da NF" disabled={!isEditing}/>
                     {isEditing && (
-                      <label style={{ ...S.btn(C.border, C.text), padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "center", gap:"6px", cursor: "pointer", whiteSpace:"nowrap" }} title="Anexar arquivo XML da Nota Fiscal">
-                        {uploadingXML ? "⏳..." : "📂 Add XML"}
-                        <input type="file" accept=".xml" onChange={handleXMLUpload} style={{ display: "none" }} disabled={uploadingXML} />
+                      <label style={{ ...S.btn(C.border, C.text), padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "center", gap:"6px", cursor: "pointer", whiteSpace:"nowrap" }} title="Anexar documento">
+                        {uploadingFile ? "⏳..." : "📂 Anexar"}
+                        {/* Agora aceita PDF, imagens e XML */}
+                        <input type="file" accept=".xml,.pdf,image/png,image/jpeg,image/jpg" onChange={handleFileUpload} style={{ display: "none" }} disabled={uploadingFile} />
                       </label>
                     )}
                   </div>
                   {/* EXIBIÇÃO VISUAL DO ANEXO COMO EM UM EMAIL */}
                   {form.link_xml && (
                     <a href={form.link_xml} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: C.blue, textDecoration: "none", fontWeight: "600", marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                      📎 Ver XML Anexado (HD Virtual)
+                      📎 Ver Anexo
                     </a>
                   )}
                 </div>
@@ -909,7 +887,7 @@ export default function App(){
               ) : (
                 <>
                   <button style={S.btnGhost} onClick={editRes ? () => setIsEditing(false) : () => setModalOpen(false)}>Cancelar</button>
-                  <button style={S.btn()} onClick={salvar} disabled={salvando || uploadingXML}>{salvando?"Salvando...":"Criar reserva"}</button>
+                  <button style={S.btn()} onClick={salvar} disabled={salvando || uploadingFile}>{salvando?"Salvando...":"Criar reserva"}</button>
                 </>
               )}
             </div>
@@ -1012,8 +990,3 @@ function ViewAgenda({currentDate,reservasDoDia,CAP_TOTAL,onEdit,espacos,numDays}
     </div>
   );
 }
-"""
-
-with open("App_Atualizado_Storage.jsx", "w", encoding="utf-8") as f:
-    f.write(code_content)
-print("File successfully created!")
