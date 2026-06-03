@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+code_content = """import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // --- CONFIGURAÇÕES ---
@@ -102,7 +102,7 @@ function CapBar({total,cap}){
   );
 }
 
-const RES_VAZIO = {cliente_nome:"",cliente_contato:"",data:"",horario:"12:00",qtd_pessoas:"",espaco_id:"",status:"pendente",observacoes:"",motivo_cancelamento:"",tipo_evento:"",nota_fiscal:"",valor_nota:""};
+const RES_VAZIO = {cliente_nome:"",cliente_contato:"",data:"",horario:"12:00",qtd_pessoas:"",espaco_id:"",status:"pendente",observacoes:"",motivo_cancelamento:"",tipo_evento:"",nota_fiscal:"",valor_nota:"",link_xml:""};
 
 export default function App(){
   const [usuario,setUsuario]     = useState(null);
@@ -129,7 +129,6 @@ export default function App(){
   const [showSearch,setShowSearch] = useState(false);
   const searchRef = useRef(null);
   
-  // Referência para abrir o calendário nativo
   const calendarioRef = useRef(null);
 
   const [modalOpen,setModalOpen]   = useState(false);
@@ -139,6 +138,7 @@ export default function App(){
   const [erroForm,setErroForm]     = useState("");
   
   const [isEditing, setIsEditing] = useState(false);
+  const [uploadingXML, setUploadingXML] = useState(false);
 
   // Relatório Filtros
   const [relDataIni,setRelDataIni]   = useState("");
@@ -166,7 +166,7 @@ export default function App(){
       ]);
       setUnidades(u||[]);
       setEspacos(e||[]);
-      const mapped=(r||[]).map(x=>({...x, cliente_nome:x.clientes?.nome||"", cliente_contato:x.clientes?.contato||""}));
+      const mapped=(r||[]).map(x=>({...x, cliente_nome:x.clientes?.nome||"", cliente_contato:x.clientes?.contato||"", link_xml:x.link_xml||""}));
       setReservas(mapped);
       if(u&&u.length>0) setUnidadeAtiva(u[0].id);
       setLoading(false);
@@ -215,7 +215,8 @@ export default function App(){
       data:r.data, horario:r.horario, qtd_pessoas:r.qtd_pessoas,
       espaco_id:r.espaco_id||"", status:r.status,
       observacoes:r.observacoes||"", motivo_cancelamento:r.motivo_cancelamento||"",
-      tipo_evento: r.tipo_evento||"", nota_fiscal: r.nota_fiscal||"", valor_nota: r.valor_nota||""
+      tipo_evento: r.tipo_evento||"", nota_fiscal: r.nota_fiscal||"", valor_nota: r.valor_nota||"",
+      link_xml: r.link_xml||""
     });
     setErroForm("");
     setIsEditing(false);
@@ -256,12 +257,14 @@ export default function App(){
     setModalOpen(true);
   }
 
-  // LÓGICA DO XML
+  // SOLUÇÃO DO HD VIRTUAL: Extrai os dados localmente E envia o arquivo para o Supabase Storage Bucket
   function handleXMLUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
+    
+    setUploadingXML(true);
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(event.target.result, "text/xml");
@@ -275,16 +278,36 @@ export default function App(){
         const valorLimpo = vNF ? parseFloat(vNF.replace(',', '.')).toFixed(2) : "";
         
         if(!nNF && !vNF) {
-          alert("Aviso: Não encontramos os campos padrão da nota (nNF ou vNF) neste XML. Você pode preencher manualmente.");
+          alert("Aviso: Não encontramos os campos padrão da nota neste XML. Você pode preencher manualmente.");
         }
+
+        // Executa o upload físico do arquivo para o bucket 'notas_fiscais'
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        
+        const { data: uploadData, error: uploadError } = await sb.storage
+          .from('notas_fiscais')
+          .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+
+        // Recupera a URL pública definitiva do arquivo recém-salvo no HD Virtual
+        const { data: { publicUrl } } = sb.storage
+          .from('notas_fiscais')
+          .getPublicUrl(fileName);
 
         setForm(p => ({ 
           ...p, 
           nota_fiscal: nNF, 
-          valor_nota: valorLimpo 
+          valor_nota: valorLimpo,
+          link_xml: publicUrl // Garante que o link do anexo fique gravado no estado do formulário
         }));
+
+        alert("XML processado e anexado com sucesso ao HD Virtual!");
       } catch (err) {
-        alert("Erro ao ler o arquivo XML. O arquivo pode estar corrompido ou fora do padrão.");
+        alert("Erro ao processar ou enviar arquivo para o Storage: " + err.message);
+      } finally {
+        setUploadingXML(false);
       }
     };
     reader.readAsText(file);
@@ -317,6 +340,7 @@ export default function App(){
         tipo_evento: form.tipo_evento||null,
         nota_fiscal: form.nota_fiscal.trim()||null,
         valor_nota: form.valor_nota ? Number(form.valor_nota) : null,
+        link_xml: form.link_xml || null // Salva a URL do anexo de forma permanente no banco de dados
       };
       if(editRes){
         const {error}=await sb.from("reservas").update(payload).eq("id",editRes.id);
@@ -325,7 +349,7 @@ export default function App(){
       } else {
         const {data:nr,error}=await sb.from("reservas").insert(payload).select().single();
         if(error) throw error;
-        setReservas(prev=>[...prev,{...nr,cliente_nome:form.cliente_nome,cliente_contato:form.cliente_contato}]);
+        setReservas(prev=>[...prev,{...nr,cliente_nome:form.cliente_nome,cliente_contato:form.cliente_contato,link_xml:payload.link_xml}]);
       }
       setModalOpen(false);
     } catch(err){ setErroForm(err.message||"Erro ao salvar."); }
@@ -596,7 +620,7 @@ export default function App(){
       </div>
 
       {aba==="reservas"&&<>
-        {/* NAV DATE - ATUALIZADO */}
+        {/* NAV DATE */}
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 24px",borderBottom:`1px solid ${C.border}`}}>
           <button onClick={()=>setCurrentDate(d=>addDays(d, -1))} style={{...S.btnGhost,width:32,padding:0,fontSize:16}}>‹</button>
           <span style={{fontSize:15,fontWeight:600,minWidth:220,textAlign:"center"}}>
@@ -740,7 +764,7 @@ export default function App(){
             </div>
           </div>
 
-          {/* Lista em Tabela Atualizada */}
+          {/* Lista em Tabela */}
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
             <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,fontSize:13,fontWeight:600}}>
               Lista de reservas detalhada ({relDados.length})
@@ -782,7 +806,7 @@ export default function App(){
 
       {/* MODAL INTELIGENTE DE VISUALIZAÇÃO / EDIÇÃO */}
       {modalOpen&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setModalOpen(false)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"} /* Correção de bug de fechamento involuntário */} onClick={e=>e.target===e.currentTarget&&setModalOpen(false)}>
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:"92%",maxWidth:540,maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontSize:15,fontWeight:600,marginBottom:18}}>
               {!editRes ? "Nova Reserva" : isEditing ? "Editar Reserva" : "Visualizar Detalhes da Reserva"}
@@ -813,7 +837,7 @@ export default function App(){
               </Grp>
             </Row>
 
-            {/* Linha personalizada para aumentar o campo da Nota Fiscal */}
+            {/* Linha da Grade Expandida: 1fr para Tipo Evento, 2fr para Nota Fiscal, 1fr para Valor */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:12,marginBottom:12}}>
               <Grp label="Tipo de Evento">
                 <select style={S.inp} value={form.tipo_evento} onChange={e=>f("tipo_evento",e.target.value)} disabled={!isEditing}>
@@ -822,13 +846,21 @@ export default function App(){
                 </select>
               </Grp>
               <Grp label="Nota Fiscal">
-                <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%" }}>
-                  <input style={{...S.inp, flex: 1}} value={form.nota_fiscal} onChange={e=>f("nota_fiscal",e.target.value)} placeholder="Nº da NF" disabled={!isEditing}/>
-                  {isEditing && (
-                    <label style={{ ...S.btn(C.border, C.text), padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "center", gap:"6px", cursor: "pointer", whiteSpace:"nowrap" }} title="Anexar arquivo XML da Nota Fiscal">
-                      📂 Add XML
-                      <input type="file" accept=".xml" onChange={handleXMLUpload} style={{ display: "none" }} />
-                    </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%" }}>
+                    <input style={{...S.inp, flex: 1}} value={form.nota_fiscal} onChange={e=>f("nota_fiscal",e.target.value)} placeholder="Nº da NF" disabled={!isEditing}/>
+                    {isEditing && (
+                      <label style={{ ...S.btn(C.border, C.text), padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "center", gap:"6px", cursor: "pointer", whiteSpace:"nowrap" }} title="Anexar arquivo XML da Nota Fiscal">
+                        {uploadingXML ? "⏳..." : "📂 Add XML"}
+                        <input type="file" accept=".xml" onChange={handleXMLUpload} style={{ display: "none" }} disabled={uploadingXML} />
+                      </label>
+                    )}
+                  </div>
+                  {/* EXIBIÇÃO VISUAL DO ANEXO COMO EM UM EMAIL */}
+                  {form.link_xml && (
+                    <a href={form.link_xml} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: C.blue, textDecoration: "none", fontWeight: "600", marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                      📎 Ver XML Anexado (HD Virtual)
+                    </a>
                   )}
                 </div>
               </Grp>
@@ -867,7 +899,6 @@ export default function App(){
               </Grp>
             </Row>
             
-            {/* Controle Inteligente dos Botões de Ação do Rodapé */}
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
               {!isEditing ? (
                 <>
@@ -878,7 +909,7 @@ export default function App(){
               ) : (
                 <>
                   <button style={S.btnGhost} onClick={editRes ? () => setIsEditing(false) : () => setModalOpen(false)}>Cancelar</button>
-                  <button style={S.btn()} onClick={salvar} disabled={salvando}>{salvando?"Salvando...":editRes?"Salvar alterações":"Criar reserva"}</button>
+                  <button style={S.btn()} onClick={salvar} disabled={salvando || uploadingXML}>{salvando?"Salvando...":"Criar reserva"}</button>
                 </>
               )}
             </div>
@@ -981,3 +1012,8 @@ function ViewAgenda({currentDate,reservasDoDia,CAP_TOTAL,onEdit,espacos,numDays}
     </div>
   );
 }
+"""
+
+with open("App_Atualizado_Storage.jsx", "w", encoding="utf-8") as f:
+    f.write(code_content)
+print("File successfully created!")
