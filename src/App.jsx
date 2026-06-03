@@ -58,6 +58,18 @@ function getTurno(h){ return parseInt(h)<17?"almoco":"jantar"; }
 function getTurnoLabel(h){ return parseInt(h)<17?"Almoço":"Jantar"; }
 function formatMoney(n){ return Number(n||0).toLocaleString("pt-BR", {style:"currency", currency:"BRL"}); }
 
+// --- FUNÇÃO PARA EXTRAIR O NOME DO ARQUIVO DA URL ---
+function getNomeAnexo(url) {
+  if (!url) return "";
+  try {
+     const filePart = url.split('/').pop();
+     const decoded = decodeURIComponent(filePart);
+     return decoded.replace(/^\d+_/, ''); // Remove o timestamp da frente
+  } catch(e) {
+     return "Anexo";
+  }
+}
+
 const ESPACO_S = {
   "Área Externa":          {bg:"#E1F5EE",color:"#0F6E56"},
   "Área Interna Recepção": {bg:"#EEEDFE",color:"#3C3489"},
@@ -257,7 +269,7 @@ export default function App(){
     setModalOpen(true);
   }
 
-  // SOLUÇÃO UNIVERSAL: Envia qualquer ficheiro sem o analisar
+  // SOLUÇÃO ATUALIZADA: Salva mantendo o nome do arquivo limpo
   async function handleFileUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -265,8 +277,9 @@ export default function App(){
     setUploadingFile(true);
     
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      // Limpa espaços e caracteres especiais do nome original para evitar bugs no link
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+      const fileName = `${Date.now()}_${cleanName}`;
       
       const { error: uploadError } = await sb.storage
         .from('notas_fiscais')
@@ -288,6 +301,24 @@ export default function App(){
     } finally {
       setUploadingFile(false);
       e.target.value = ''; // Reseta o input
+    }
+  }
+
+  async function removerAnexo() {
+    if (!window.confirm("Deseja realmente excluir este anexo?")) return;
+
+    setUploadingFile(true);
+    try {
+      if (form.link_xml && form.link_xml.includes('supabase.co')) {
+        const fileName = form.link_xml.split('/').pop();
+        await sb.storage.from('notas_fiscais').remove([fileName]);
+      }
+      setForm(p => ({ ...p, link_xml: "" }));
+    } catch(err) {
+      console.error(err);
+      setForm(p => ({ ...p, link_xml: "" }));
+    } finally {
+      setUploadingFile(false);
     }
   }
 
@@ -814,7 +845,7 @@ export default function App(){
               </Grp>
             </Row>
 
-            {/* Linha da Grade Expandida: 1fr para Tipo Evento, 2fr para Nota Fiscal, 1fr para Valor */}
+            {/* Linha da Grade Expandida */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr",gap:12,marginBottom:12}}>
               <Grp label="Tipo de Evento">
                 <select style={S.inp} value={form.tipo_evento} onChange={e=>f("tipo_evento",e.target.value)} disabled={!isEditing}>
@@ -826,19 +857,25 @@ export default function App(){
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
                   <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%" }}>
                     <input style={{...S.inp, flex: 1}} value={form.nota_fiscal} onChange={e=>f("nota_fiscal",e.target.value)} placeholder="Nº da NF" disabled={!isEditing}/>
-                    {isEditing && (
+                    {isEditing && !form.link_xml && (
                       <label style={{ ...S.btn(C.border, C.text), padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "center", gap:"6px", cursor: "pointer", whiteSpace:"nowrap" }} title="Anexar documento">
                         {uploadingFile ? "⏳..." : "📂 Anexar"}
-                        {/* Agora aceita PDF, imagens e XML */}
                         <input type="file" accept=".xml,.pdf,image/png,image/jpeg,image/jpg" onChange={handleFileUpload} style={{ display: "none" }} disabled={uploadingFile} />
                       </label>
                     )}
                   </div>
-                  {/* EXIBIÇÃO VISUAL DO ANEXO COMO EM UM EMAIL */}
+                  {/* EXIBIÇÃO VISUAL DO ANEXO COM NOME DO ARQUIVO */}
                   {form.link_xml && (
-                    <a href={form.link_xml} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: C.blue, textDecoration: "none", fontWeight: "600", marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                      📎 Ver Anexo
-                    </a>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "4px" }}>
+                      <a href={form.link_xml} target="_blank" rel="noopener noreferrer" title={getNomeAnexo(form.link_xml)} style={{ fontSize: "12px", color: C.blue, textDecoration: "none", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "4px", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        📎 {getNomeAnexo(form.link_xml)}
+                      </a>
+                      {isEditing && (
+                        <button type="button" onClick={removerAnexo} disabled={uploadingFile} style={{ background: "none", border: "none", color: C.red, fontSize: "11px", cursor: "pointer", textDecoration: "underline", padding: 0, flexShrink: 0 }}>
+                          Excluir anexo
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </Grp>
@@ -880,14 +917,14 @@ export default function App(){
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
               {!isEditing ? (
                 <>
-                  {editRes && <button style={{...S.btnGhost,color:C.red,borderColor:C.red+"66"}} onClick={handleExcluirComSenha}>Excluir Reserva</button>}
-                  <button style={S.btnGhost} onClick={()=>setModalOpen(false)}>Fechar</button>
-                  <button style={S.btn(C.blue, "#fff")} onClick={handleHabilitarEdicao}>Editar Dados</button>
+                  {editRes && <button type="button" style={{...S.btnGhost,color:C.red,borderColor:C.red+"66"}} onClick={handleExcluirComSenha}>Excluir Reserva</button>}
+                  <button type="button" style={S.btnGhost} onClick={()=>setModalOpen(false)}>Fechar</button>
+                  <button type="button" style={S.btn(C.blue, "#fff")} onClick={handleHabilitarEdicao}>Editar Dados</button>
                 </>
               ) : (
                 <>
-                  <button style={S.btnGhost} onClick={editRes ? () => setIsEditing(false) : () => setModalOpen(false)}>Cancelar</button>
-                  <button style={S.btn()} onClick={salvar} disabled={salvando || uploadingFile}>{salvando?"Salvando...":"Criar reserva"}</button>
+                  <button type="button" style={S.btnGhost} onClick={editRes ? () => setIsEditing(false) : () => setModalOpen(false)}>Cancelar</button>
+                  <button type="button" style={S.btn()} onClick={salvar} disabled={salvando || uploadingFile}>{salvando?"Salvando...":"Criar reserva"}</button>
                 </>
               )}
             </div>
